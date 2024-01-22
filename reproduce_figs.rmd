@@ -1,5 +1,5 @@
 ---
-title: "group_midus"
+title: "BST270: Individual Project"
 author: "Liz Graff"
 output: html_document
 ---
@@ -8,24 +8,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## Including Code
-
-You can include R code in the document as follows:
-
-```{r, include=FALSE}
-source("R/my_read_rda.R", local = knitr::knit_global())
-source("R/filter_lipid.R")
-source("R/filter_confounders.R")
-source("R/filter_pathway.R")
-source("R/filter_optimism.R")
-source("R/fig1plot.R")
-source("R/gen_table1_lipid.R")
-```
 
 ## Introduction
 
 In this Rmarkdown file I attempt to reproduce the figures that appear in the article
 ["How Americans Like Their Steak"](https://fivethirtyeight.com/features/how-americans-like-their-steak/) written by Walt Hickey published on May 16, 2014. 
+
 TODO: short summary of article. 
 
 
@@ -33,151 +21,121 @@ TODO: short summary of article.
 ## Package and Data loading 
 
 Load the necessary packages and set the working directory, i.e. , the location
-where the repository is housed. 
+where the repository is housed. Be sure to change the path of the working directory
+to your own local directory i.e., `setwd('/path/to/your/local/directory/here')`
+
 ```{r, message=FALSE, warning=FALSE}
 # load all packages used to wrangle data and generate plots 
 library(dplyr)
 library(tidyverse)
 library(ggplot2)
+library(data.table)
 
-# set working directory
-setwd('/Users/ecyoo/Desktop/BST270_ReprodDS/bst270_24_individual_project')
+# set working directory -- 
+setwd('/Users/ecyoo/Desktop/BST270_ReprodDS/2024_bst270_individual_project')
 ```
 
+
+## Read data
 Next, we load the steak risk survey dataset. It is a single .csv file. If it does
 not exist locally, We will download it from FiveThirtyEight's URL. 
 
 ```{r}
-
-
+if (file.exists('./data/steak-survey/steak-risk-survey.csv')) {
+  survey_data <- fread('./data/steak-survey/steak-risk-survey.csv')
+} else {
+  fwrite(survey_data, './data/steak-survey/steak-risk-survey.csv')
+}
 ```
 
-## Read data
-HERE
+The survey data has 551 rows and 15 columns. The article states 
+
+
+## Data preprocessing 
+
 ```{r}
-data = inner_join(da04652.0001, da29282.0001, by = c("M2ID", "M2FAMNUM"),suffix = c('','.2'))
-print(dim(data))
+# get the number of rows and columns in the survey dataset
+dim(survey_data)
+# check for the number of rows that contain empty values
+sum(is.na(survey_data))
+
+# get column names of the data -- they were not included in the dataset README
+colnames(survey_data)
+rows_with_nas <- survey_data[apply(survey_data, 1, function(x) any(is.na(x))),]
+unique(survey_data[,9])
+
+```
+We see that the survey data is 551 rows by 15 columns, and the 'Response' entry
+takes up a row. The article states that there were 550 respondents, so we will
+delete that dummy row. 
+
+We are interested in the following columns:
+(1) column 2, the respondent's preference for lottery A (the riskier lottery) vs. lottery B (the safer lottery)
+(2) column 9, whether or not they eat steak
+(3) column 10, how they like their steak prepared
+
+We'll subset the data to contain these three columns (in addition to respondent IDs) and for brevity and machine-readability, we will rename the columns of interest to: (1) 'lottery' (2) 'eats_steak' (3) 'steak_doneness'.
+
+We are only interested in those that eat steak, so we will filter accordingly. 
+
+```{r}
+# subset data
+survey_data_sub <- survey_data[,c(1,2,9,10)]
+  
+# rename columns 2, 9, 10
+colnames(survey_data_sub)[2] <- 'lottery'
+colnames(survey_data_sub)[3] <- 'eats_steak'
+colnames(survey_data_sub)[4] <- 'steak_doneness'
+
+# subset only respondents that eat steak
+steak_data <- survey_data_sub[eats_steak=='Yes', ]
 ```
 
-Data has 1054 rows at the beginning after merging the two tables. 
-Now we are going to try and reproduce the preprocessing steps such that we can 
-obtain the 990 individuals they used for the paper analysis.
-
-## Wrangle data
-
-### Step 0. Filter optimism variables
-
-Optimism is assessed using the 6-item Life-Orientation test. In the codebook we have
-found that the B1SORIEN column contains the test value, already processed as 
-explained in the paper while columns ('B1SORIEN','B1SE10A', 'B1SE10B', 'B1SE10C', 'B1SE10D', 'B1SE10E','B1SE10F')
-contain the single item scores.
-
-Here we are filtering the rows to remove the individuals
-who do not have an optimism score.
+Since the table and the bar chart are in terms of percentages and not raw values, we calculate the percentages of each steak doneness category, overall and stratified by
+lottery type.
 
 ```{r}
-data_after_fo = data %>% filter_optimism()
-nrow(data_after_fo)
+# calculate population-wide percentages 
+steak_data <- steak_data %>%
+  count(steak_doneness) %>%
+  mutate(percentage = n / sum(n) * 100)
+
+# generate bar plot 
+ggplot(steak_data, aes(x = steak_doneness, y = percentage)) +
+    geom_col(fill = "blue") +
+    geom_text(aes(label = sprintf("%.2f%%", percentage)), vjust = -0.5) +
+    ggtitle("Percentage of Each Category") +
+    xlab("Category") +
+    ylab("Percentage (%)") +
+    theme_minimal() + 
+    coord_flip() # the bar chart in the article is horizontal
+
+# calculate percentages, stratified by lottery type 
+df <- df %>%
+    group_by(group_column, category) %>%  # Group by both columns
+    summarise(count = n()) %>%  # Count occurrences
+    mutate(percentage = count / sum(count) * 100)  # Calculate percentage within each group
 ```
 
-We are left with 1050 samples. 
-However, by visually inspecting the table we can see that for some patients, 
-although we have a B1SORIEN value, some of the items are reported as NAs. 
-This seems weird, we do not understand how they computed the final score, 
-hence we proceed to remove also these patients.
+TODO for overall and stratified percentages
 
 ```{r}
 
-optimism_columns <- c('B1SORIEN','B1SE10A', 'B1SE10B', 'B1SE10C', 'B1SE10D', 'B1SE10E','B1SE10F')
-data_after_fo2 <- data_after_fo %>%
-    drop_na(any_of(optimism_columns))
-nrow(data_after_fo2)
-```
+df_combined <- df %>%
+    # Calculate stratified count
+    count(category, strata) %>%
+    
+    # Calculate total count per category for stratified percentage
+    group_by(category) %>%
+    mutate(total_strata = sum(n),
+           percentage_strata = n / total_strata * 100) %>%
+    
+    # Calculate overall total for overall percentage
+    ungroup() %>%
+    mutate(total_overall = sum(n),
+           percentage_overall = n / total_overall * 100) %>%
+    
+    # Select and rename as necessary
+    select(category, strata, percentage_overall, percentage_strata)
 
-We are left with 1041 samples.
-
-Secondly, we clean the columns relative to lipids (Total cholesterol, HDL, LDL, triglicerydes).
-
-### Step 1 Filter lipid measurements
-We will focus on 24 columns of our interests and drop rows with missing values in "B4BCHOL", "B4BTRIGL", "B4BHDL" and "B4BLDL" columns.
-```{r}
-lipid_columns = c("B4BCHOL", "B4BTRIGL", "B4BHDL", "B4BLDL")
-data_after_fl = data_after_fo2 %>% filter_lipid()
-nrow(data_after_fl)
-```
-
-After filtering lipid measurements, we have 1030 rows left
-
-We also have to clean and filter the pathway variables which are those relative to lifestyle
-and concern drinking, smoking and diet.
-
-### Step 2 Filter pathway variables
-```{r}
-
-data_after_fp = filter_pathway(data_after_fl)
-nrow(data_after_fp)
-pathway_columns = c("B4PBMI", "alcohol_consumption", "smoking_status", "reg_exercise","score_sum")
-```
-
-We are left with 1020 samples. This filtering was tricky because we found that
-many choices are not adequately explained in the paper: what columns are used for 
-the drinking habits? 
-
-### Step 3 Filter potential confounders
-Finally we filter the potential confounders, such as age, sex, income..
-
-```{r}
-confounder_columns = c('B1PB1','B1STINC1','B4ZB1SLG','B1SCHROX','B4H26','B4H33','B4H25','B4PBMI','B1SNEGAF')
-
-data_after_fc = filter_confounders(data_after_fp, confounder_columns)
-nrow(data_after_fc)
-```
-
-Here we are left with 994 individuals, 4 more than those reported in the paper.
-
-Although we are not able to completely reproduce the data wrangling steps, 
-we are now going to reproduce some of the figures and tables and assess whether the 
-general trends reported in the paper are robust to this slight change in the population 
-make-up.
-
-Let's keep only the columns of interest
-```{r}
-all_columns = c(optimism_columns, lipid_columns, pathway_columns, confounder_columns)
-View(data_after_fc[,all_columns])
-```
-
-
-
-## Figure 1
-
-First, we attempt to reproduce Figure 1. 
-Figure 1 shows the frequency distribution of 990 optimism scores 
-(mean +- SD: 23.95 +- 4.69), 
-with black representing the lowest tertile of optimism (6 to 22), 
-gray, middle tertile of optimism (23 to 26), 
-and white, highest tertile of optimism (27 to 30)
-
-In our data the average and standard deviation might be slightly different
-```{r}
-mean(data_after_fc$B1SORIEN)
-sd(data_after_fc$B1SORIEN)
-```
-
-Indeed we have a slight deviation in mean, that is now 23.91 vs the 23.05 reported in the table. 
-Standard deviation is instead consistent with what was reported.
-
-
-```{r}
-gen_fig1(data_after_fc)
-```
-The histogram of the optimism scores seems to be slightly different, for instance 
-there seem to be more samples with score 22.
-
-## Table 1
-
-We then proceed to reproduce table 1. We are gonna split it in different chunks, 
-based on the lipid/confounder/pathway groups.
-
-```{r}
-gen_table1_lipid(data_after_fc)
 ```
