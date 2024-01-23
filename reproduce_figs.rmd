@@ -12,11 +12,9 @@ knitr::opts_chunk$set(echo = TRUE)
 ## Introduction
 
 In this Rmarkdown file I attempt to reproduce the figures that appear in the article
-["How Americans Like Their Steak"](https://fivethirtyeight.com/features/how-americans-like-their-steak/) written by Walt Hickey published on May 16, 2014. 
-
-TODO: short summary of article. 
-
-
+["How Americans Like Their Steak"](https://fivethirtyeight.com/features/how-americans-like-their-steak/) written by Walt Hickey published on May 16, 2014. The author hypothesized that people who
+take risky behaviors may have a tendency to eat their steaks rare (and therefore
+risk foodborne ilness). His team collected survey data asking respondents about their participation in risky behaviors e.g., skydiving, speeding, smoking, lottery, in addition to their preferred steak doneness (spoiler: he found no obvious correlations).
 
 ## Package and Data loading 
 
@@ -26,13 +24,12 @@ to your own local directory i.e., `setwd("/path/to/your/local/directory/here")`
 
 ```{r, message=FALSE, warning=FALSE}
 # load all packages used to wrangle data and generate plots 
-library(dplyr)
 library(knitr)
 library(tidyverse)
-library(ggplot2)
 library(data.table)
 
-# set working directory -- 
+# set working directory -- Note: change this path to wherever the repository lives
+# on your local machine
 setwd("/Users/ecyoo/Desktop/BST270_ReprodDS/2024_bst270_individual_project")
 ```
 
